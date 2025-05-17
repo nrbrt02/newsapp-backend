@@ -21,18 +21,18 @@ public class Reply {
     private Long id;
     
     @Lob
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "LONGTEXT")
     private String content;
     
     private Integer likes = 0;
     
-    private Integer status = 1; // 1: Active, 0: Inactive
+    private Integer status = 1;
     
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "comment_id", nullable = false)
     private Comment comment;
     
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     

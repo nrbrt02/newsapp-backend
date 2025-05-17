@@ -44,27 +44,64 @@ public class ArticleService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Transactional(readOnly = true)
     public Page<ArticleDto> getAllArticles(Pageable pageable) {
-        return articleRepository.findAll(pageable)
-                .map(article -> modelMapper.map(article, ArticleDto.class));
+        Page<Article> articlePage = articleRepository.findAllWithTags(pageable);
+        
+        List<Article> articlesWithTags = articleRepository.findArticlesWithTags(articlePage.getContent());
+        
+        java.util.Map<Long, Article> articlesMap = articlesWithTags.stream()
+                .collect(Collectors.toMap(Article::getId, article -> article));
+                
+        return articlePage.map(article -> {
+            Article articleWithTags = articlesMap.get(article.getId());
+            return modelMapper.map(articleWithTags != null ? articleWithTags : article, ArticleDto.class);
+        });
     }
 
+    @Transactional(readOnly = true)
+public Page<ArticleDto> getArticlesByCurrentUser(Pageable pageable) {
+    User currentUser = getCurrentUser();
+    
+    Page<Article> articlePage = articleRepository.findByAuthor(currentUser, pageable);
+    
+    if (!articlePage.isEmpty()) {
+        List<Article> articlesWithTags = articleRepository.findArticlesWithTags(articlePage.getContent());
+        
+        java.util.Map<Long, Article> articlesMap = articlesWithTags.stream()
+                .collect(Collectors.toMap(Article::getId, article -> article));
+                
+        return articlePage.map(article -> {
+            Article articleWithTags = articlesMap.get(article.getId());
+            return modelMapper.map(articleWithTags != null ? articleWithTags : article, ArticleDto.class);
+        });
+    }
+    
+    return articlePage.map(article -> modelMapper.map(article, ArticleDto.class));
+}
+
+    @Transactional(readOnly = true)
     public Page<ArticleDto> getPublishedArticles(Pageable pageable) {
         return articleRepository.findByStatus(Article.Status.PUBLISHED, pageable)
                 .map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
+    @Transactional
     public ArticleDto getArticleById(Long id) {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + id));
         
-        // Increment views
+        if (article.getTags() != null) {
+            article.getTags().size();
+        }
+        
         article.setViews(article.getViews() + 1);
         articleRepository.save(article);
         
         return modelMapper.map(article, ArticleDto.class);
     }
 
+    @Transactional(readOnly = true)
     public Page<ArticleDto> getArticlesByAuthor(Long authorId, Pageable pageable) {
         User author = userRepository.findById(authorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Author not found with id: " + authorId));
@@ -73,6 +110,7 @@ public class ArticleService {
                 .map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
+    @Transactional(readOnly = true)
     public Page<ArticleDto> getArticlesByCategory(Long categoryId, Pageable pageable) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + categoryId));
@@ -81,11 +119,13 @@ public class ArticleService {
                 .map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
+    @Transactional(readOnly = true)
     public Page<ArticleDto> searchArticles(String keyword, Pageable pageable) {
         return articleRepository.searchArticles(keyword, pageable)
                 .map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
+    @Transactional(readOnly = true)
     public List<ArticleDto> getTopArticles(int count) {
         return articleRepository.findTopArticlesByViews(Pageable.ofSize(count))
                 .stream()
@@ -97,7 +137,6 @@ public class ArticleService {
     public ArticleDto createArticle(ArticleRequest articleRequest) {
         User currentUser = getCurrentUser();
         
-        // Only admin or writer can create articles
         if (!currentUser.getRole().equals(User.Role.ADMIN) && !currentUser.getRole().equals(User.Role.WRITER)) {
             throw new AccessDeniedException("Only administrators and writers can create articles");
         }
@@ -111,14 +150,14 @@ public class ArticleService {
         article.setAuthor(currentUser);
         article.setViews(0);
 
-        // Set category if provided
         if (articleRequest.getCategoryId() != null) {
             Category category = categoryRepository.findById(articleRequest.getCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + articleRequest.getCategoryId()));
             article.setCategory(category);
         }
 
-        // Set tags if provided
+        Article savedArticle = articleRepository.save(article);
+        
         if (articleRequest.getTagIds() != null && !articleRequest.getTagIds().isEmpty()) {
             Set<Tag> tags = new HashSet<>();
             for (Long tagId : articleRequest.getTagIds()) {
@@ -126,10 +165,10 @@ public class ArticleService {
                         .orElseThrow(() -> new ResourceNotFoundException("Tag not found with id: " + tagId));
                 tags.add(tag);
             }
-            article.setTags(tags);
+            savedArticle.setTags(tags);
+            savedArticle = articleRepository.save(savedArticle);
         }
 
-        Article savedArticle = articleRepository.save(article);
         return modelMapper.map(savedArticle, ArticleDto.class);
     }
 
@@ -139,7 +178,6 @@ public class ArticleService {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + id));
 
-        // Check if the user has permission to update the article
         if (!currentUser.getRole().equals(User.Role.ADMIN) && !article.getAuthor().getId().equals(currentUser.getId())) {
             throw new AccessDeniedException("You don't have permission to update this article");
         }
@@ -154,14 +192,12 @@ public class ArticleService {
         
         article.setStatus(articleRequest.getStatus());
 
-        // Update category if provided
         if (articleRequest.getCategoryId() != null) {
             Category category = categoryRepository.findById(articleRequest.getCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + articleRequest.getCategoryId()));
             article.setCategory(category);
         }
 
-        // Update tags if provided
         if (articleRequest.getTagIds() != null) {
             Set<Tag> tags = new HashSet<>();
             for (Long tagId : articleRequest.getTagIds()) {
@@ -182,7 +218,6 @@ public class ArticleService {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + id));
 
-        // Check if the user has permission to delete the article
         if (!currentUser.getRole().equals(User.Role.ADMIN) && !article.getAuthor().getId().equals(currentUser.getId())) {
             throw new AccessDeniedException("You don't have permission to delete this article");
         }
@@ -196,7 +231,6 @@ public class ArticleService {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + id));
 
-        // Check if the user has permission to update the article status
         if (!currentUser.getRole().equals(User.Role.ADMIN) && !article.getAuthor().getId().equals(currentUser.getId())) {
             throw new AccessDeniedException("You don't have permission to update this article's status");
         }

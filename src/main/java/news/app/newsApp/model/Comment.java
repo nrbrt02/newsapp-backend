@@ -1,3 +1,4 @@
+
 package news.app.newsApp.model;
 
 import jakarta.persistence.*;
@@ -23,25 +24,25 @@ public class Comment {
     private Long id;
     
     @Lob
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "LONGTEXT")
     private String comment;
     
     private Integer likes = 0;
     
-    private Integer status = 1; // 1: Active, 0: Inactive
+    private Integer status = 1;
     
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
     
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
     @Column(name = "email")
     private String email;
     
-    @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Reply> replies = new ArrayList<>();
     
     @CreationTimestamp

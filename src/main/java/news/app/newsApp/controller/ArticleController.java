@@ -41,6 +41,14 @@ public class ArticleController {
         return ResponseEntity.ok(article);
     }
 
+    
+    @GetMapping("/my-articles")
+    @PreAuthorize("hasAnyRole('ADMIN', 'WRITER')")
+    public ResponseEntity<Page<ArticleDto>> getMyArticles(@PageableDefault(size = 10) Pageable pageable) {
+        Page<ArticleDto> articles = articleService.getArticlesByCurrentUser(pageable);
+        return ResponseEntity.ok(articles);
+    }
+
     @GetMapping("/author/{authorId}")
     public ResponseEntity<Page<ArticleDto>> getArticlesByAuthor(
             @PathVariable Long authorId, 

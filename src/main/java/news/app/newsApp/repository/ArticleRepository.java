@@ -25,4 +25,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT a FROM Article a WHERE a.status = 'PUBLISHED' ORDER BY a.createdAt DESC")
     Page<Article> findLatestArticles(Pageable pageable);
+
+    @Query("SELECT a FROM Article a")
+    Page<Article> findAllWithTags(Pageable pageable);
+    
+    @Query("SELECT a FROM Article a LEFT JOIN FETCH a.tags WHERE a IN :articles")
+    List<Article> findArticlesWithTags(List<Article> articles);
 }
