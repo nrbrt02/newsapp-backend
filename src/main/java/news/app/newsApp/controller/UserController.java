@@ -18,6 +18,13 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    @PostMapping
+@PreAuthorize("hasRole('ADMIN')")
+public ResponseEntity<UserDto> createUser(@Valid @RequestBody UserDto userDto) {
+    UserDto createdUser = userService.createUser(userDto);
+    return ResponseEntity.status(201).body(createdUser);
+}
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserDto>> getAllUsers() {

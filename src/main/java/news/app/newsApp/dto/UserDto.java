@@ -13,6 +13,7 @@ public class UserDto {
     private String firstName;
     private String lastName;
     private String phone;
+    private String password;
     private String profilePic;
     private User.Role role;
     private Boolean isActive;
