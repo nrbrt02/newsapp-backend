@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 
+import java.util.ConcurrentModificationException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -71,6 +72,18 @@ public class GlobalExceptionHandler {
         
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
+    
+@ExceptionHandler(ConcurrentModificationException.class)
+public ResponseEntity<ErrorResponse> handleConcurrentModificationException(ConcurrentModificationException ex, WebRequest request) {
+    ErrorResponse errorDetails = new ErrorResponse(
+            new Date(),
+            HttpStatus.CONFLICT.value(),
+            "Concurrent Modification Error",
+            "A concurrent operation was detected. Please try again.",
+            request.getDescription(false));
+    
+    return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
+}
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, WebRequest request) {

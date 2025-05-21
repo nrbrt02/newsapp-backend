@@ -19,6 +19,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class CommentService {
 
@@ -34,12 +36,27 @@ public class CommentService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Transactional(readOnly = true)
     public Page<CommentDto> getCommentsByArticle(Long articleId, Pageable pageable) {
         Article article = articleRepository.findById(articleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + articleId));
         
-        return commentRepository.findByArticle(article, pageable)
-                .map(comment -> modelMapper.map(comment, CommentDto.class));
+        // First, get all comments with their replies
+        List<Comment> allComments = commentRepository.findByArticleWithReplies(article);
+        
+        // Manual pagination
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), allComments.size());
+        
+        List<Comment> pageComments = allComments.subList(start, end);
+        
+        return new org.springframework.data.domain.PageImpl<>(
+            pageComments.stream()
+                .map(comment -> modelMapper.map(comment, CommentDto.class))
+                .collect(java.util.stream.Collectors.toList()),
+            pageable,
+            allComments.size()
+        );
     }
 
     public CommentDto getCommentById(Long id) {

@@ -1,4 +1,3 @@
-
 package news.app.newsApp.model;
 
 import jakarta.persistence.*;
@@ -24,18 +23,18 @@ public class Comment {
     private Long id;
     
     @Lob
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(columnDefinition = "TEXT")
     private String comment;
     
     private Integer likes = 0;
     
     private Integer status = 1;
     
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
     
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     

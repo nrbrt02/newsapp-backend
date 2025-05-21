@@ -1,7 +1,6 @@
 package news.app.newsApp.config;
 
 import org.hibernate.collection.spi.PersistentCollection;
-import org.modelmapper.Condition;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.context.annotation.Bean;
@@ -14,18 +13,19 @@ public class ModelMapperConfig {
     public ModelMapper modelMapper() {
         ModelMapper modelMapper = new ModelMapper();
         
-        // Configure ModelMapper for strict matching
+        // Configure property mappings
         modelMapper.getConfiguration()
-                .setMatchingStrategy(MatchingStrategies.STRICT)
-                .setSkipNullEnabled(true);
-        
-        // Skip Hibernate PersistentCollections that haven't been initialized
-        Condition<?, ?> skipUninitialized = (ctx) -> 
-            !(ctx.getSource() instanceof PersistentCollection) || 
-            ((PersistentCollection<?>) ctx.getSource()).wasInitialized();
+            .setSkipNullEnabled(true)
+            .setAmbiguityIgnored(true)
+            .setMatchingStrategy(MatchingStrategies.STRICT)
+            .setPropertyCondition(context -> {
+                // Skip uninitialized lazy-loaded collections
+                if (context.getSource() instanceof PersistentCollection) {
+                    return ((PersistentCollection<?>) context.getSource()).wasInitialized();
+                }
+                return context.getSource() != null;
+            });
             
-        modelMapper.getConfiguration().setPropertyCondition(skipUninitialized);
-        
         return modelMapper;
     }
 }

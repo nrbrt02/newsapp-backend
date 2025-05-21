@@ -5,6 +5,8 @@ import news.app.newsApp.dto.ArticleRequest;
 import news.app.newsApp.exception.ResourceNotFoundException;
 import news.app.newsApp.model.Article;
 import news.app.newsApp.model.Category;
+import news.app.newsApp.model.Comment;
+import news.app.newsApp.model.Reply;
 import news.app.newsApp.model.Tag;
 import news.app.newsApp.model.User;
 import news.app.newsApp.repository.ArticleRepository;
@@ -21,6 +23,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -60,25 +63,25 @@ public class ArticleService {
     }
 
     @Transactional(readOnly = true)
-public Page<ArticleDto> getArticlesByCurrentUser(Pageable pageable) {
-    User currentUser = getCurrentUser();
-    
-    Page<Article> articlePage = articleRepository.findByAuthor(currentUser, pageable);
-    
-    if (!articlePage.isEmpty()) {
-        List<Article> articlesWithTags = articleRepository.findArticlesWithTags(articlePage.getContent());
+    public Page<ArticleDto> getArticlesByCurrentUser(Pageable pageable) {
+        User currentUser = getCurrentUser();
         
-        java.util.Map<Long, Article> articlesMap = articlesWithTags.stream()
-                .collect(Collectors.toMap(Article::getId, article -> article));
-                
-        return articlePage.map(article -> {
-            Article articleWithTags = articlesMap.get(article.getId());
-            return modelMapper.map(articleWithTags != null ? articleWithTags : article, ArticleDto.class);
-        });
+        Page<Article> articlePage = articleRepository.findByAuthor(currentUser, pageable);
+        
+        if (!articlePage.isEmpty()) {
+            List<Article> articlesWithTags = articleRepository.findArticlesWithTags(articlePage.getContent());
+            
+            java.util.Map<Long, Article> articlesMap = articlesWithTags.stream()
+                    .collect(Collectors.toMap(Article::getId, article -> article));
+                    
+            return articlePage.map(article -> {
+                Article articleWithTags = articlesMap.get(article.getId());
+                return modelMapper.map(articleWithTags != null ? articleWithTags : article, ArticleDto.class);
+            });
+        }
+        
+        return articlePage.map(article -> modelMapper.map(article, ArticleDto.class));
     }
-    
-    return articlePage.map(article -> modelMapper.map(article, ArticleDto.class));
-}
 
     @Transactional(readOnly = true)
     public Page<ArticleDto> getPublishedArticles(Pageable pageable) {
@@ -86,19 +89,47 @@ public Page<ArticleDto> getArticlesByCurrentUser(Pageable pageable) {
                 .map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public ArticleDto getArticleById(Long id) {
-        Article article = articleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Article not found with id: " + id));
+        // First fetch the article with its basic relationships
+        Article article = articleRepository.findByIdWithAllRelationships(id);
         
-        if (article.getTags() != null) {
-            article.getTags().size();
+        if (article == null) {
+            throw new ResourceNotFoundException("Article not found with id: " + id);
         }
         
-        article.setViews(article.getViews() + 1);
-        articleRepository.save(article);
+        // Then fetch comments separately and maintain as List
+        List<Comment> comments = articleRepository.findCommentsByArticleId(id);
+        
+        // Load LOB data for comments and replies
+        for (Comment comment : comments) {
+            // Load comment content
+            String commentContent = articleRepository.getCommentContent(comment.getId());
+            comment.setComment(commentContent);
+            
+            // Load reply contents
+            if (comment.getReplies() != null) {
+                for (Reply reply : comment.getReplies()) {
+                    String replyContent = articleRepository.getReplyContent(reply.getId());
+                    reply.setContent(replyContent);
+                }
+            }
+        }
+        
+        article.setComments(comments);
+        
+        // Increment view count in a separate transaction
+        updateArticleViews(id);
         
         return modelMapper.map(article, ArticleDto.class);
+    }
+    
+    @Transactional
+    public void updateArticleViews(Long id) {
+        articleRepository.findById(id).ifPresent(article -> {
+            article.setViews(article.getViews() + 1);
+            articleRepository.save(article);
+        });
     }
 
     @Transactional(readOnly = true)
