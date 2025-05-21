@@ -8,6 +8,7 @@ import news.app.newsApp.service.ArticleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,13 +26,17 @@ public class ArticleController {
     private ArticleService articleService;
 
     @GetMapping
-    public ResponseEntity<Page<ArticleDto>> getAllArticles(@PageableDefault(size = 10) Pageable pageable) {
+    public ResponseEntity<Page<ArticleDto>> getAllArticles(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.getAllArticles(pageable);
         return ResponseEntity.ok(articles);
     }
 
     @GetMapping("/published")
-    public ResponseEntity<Page<ArticleDto>> getPublishedArticles(@PageableDefault(size = 10) Pageable pageable) {
+    public ResponseEntity<Page<ArticleDto>> getPublishedArticles(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.getPublishedArticles(pageable);
         return ResponseEntity.ok(articles);
     }
@@ -43,10 +48,11 @@ public class ArticleController {
         return ResponseEntity.ok(article);
     }
 
-    
     @GetMapping("/my-articles")
     @PreAuthorize("hasAnyRole('ADMIN', 'WRITER')")
-    public ResponseEntity<Page<ArticleDto>> getMyArticles(@PageableDefault(size = 10) Pageable pageable) {
+    public ResponseEntity<Page<ArticleDto>> getMyArticles(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.getArticlesByCurrentUser(pageable);
         return ResponseEntity.ok(articles);
     }
@@ -54,7 +60,8 @@ public class ArticleController {
     @GetMapping("/author/{authorId}")
     public ResponseEntity<Page<ArticleDto>> getArticlesByAuthor(
             @PathVariable Long authorId, 
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.getArticlesByAuthor(authorId, pageable);
         return ResponseEntity.ok(articles);
     }
@@ -62,7 +69,8 @@ public class ArticleController {
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<Page<ArticleDto>> getArticlesByCategory(
             @PathVariable Long categoryId, 
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.getArticlesByCategory(categoryId, pageable);
         return ResponseEntity.ok(articles);
     }
@@ -70,7 +78,8 @@ public class ArticleController {
     @GetMapping("/search")
     public ResponseEntity<Page<ArticleDto>> searchArticles(
             @RequestParam String keyword, 
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) 
+            Pageable pageable) {
         Page<ArticleDto> articles = articleService.searchArticles(keyword, pageable);
         return ResponseEntity.ok(articles);
     }

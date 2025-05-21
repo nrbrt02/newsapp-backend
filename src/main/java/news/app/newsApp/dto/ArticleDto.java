@@ -22,4 +22,5 @@ public class ArticleDto {
     private LocalDateTime updatedAt;
     private List<ArticleImageDto> images;
     private Set<TagDto> tags;
+    private Integer commentCount;
 }

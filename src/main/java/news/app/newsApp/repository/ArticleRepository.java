@@ -19,14 +19,34 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     Page<Article> findByCategory(Category category, Pageable pageable);
     Page<Article> findByStatus(Article.Status status, Pageable pageable);
     
-    @Query("SELECT a FROM Article a WHERE a.title LIKE %?1% OR a.content LIKE %?1% OR a.description LIKE %?1%")
-    Page<Article> searchArticles(String keyword, Pageable pageable);
+    @Query("SELECT DISTINCT a FROM Article a " +
+           "LEFT JOIN FETCH a.author " +
+           "LEFT JOIN FETCH a.category " +
+           "LEFT JOIN FETCH a.tags " +
+           "WHERE a.title LIKE %?1% " +
+           "OR a.content LIKE %?1% " +
+           "OR a.description LIKE %?1%")
+    List<Article> searchArticlesWithRelationships(String keyword);
+
+    @Query("SELECT DISTINCT a FROM Article a " +
+           "WHERE LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(a.content) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(a.description) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    Page<Article> searchArticles(@Param("keyword") String keyword, Pageable pageable);
     
     @Query("SELECT a FROM Article a WHERE a.status = 'PUBLISHED' ORDER BY a.views DESC")
     List<Article> findTopArticlesByViews(Pageable pageable);
     
     @Query("SELECT a FROM Article a WHERE a.status = 'PUBLISHED' ORDER BY a.createdAt DESC")
     Page<Article> findLatestArticles(Pageable pageable);
+
+    @Query("SELECT DISTINCT a FROM Article a " +
+           "LEFT JOIN FETCH a.author " +
+           "LEFT JOIN FETCH a.category " +
+           "LEFT JOIN FETCH a.tags " +
+           "WHERE a.status = 'PUBLISHED' " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findPublishedArticlesWithCommentCount();
 
     @Query("SELECT a FROM Article a")
     Page<Article> findAllWithTags(Pageable pageable);

@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -85,8 +86,29 @@ public class ArticleService {
 
     @Transactional(readOnly = true)
     public Page<ArticleDto> getPublishedArticles(Pageable pageable) {
-        return articleRepository.findByStatus(Article.Status.PUBLISHED, pageable)
-                .map(article -> modelMapper.map(article, ArticleDto.class));
+        List<Article> allArticles = articleRepository.findPublishedArticlesWithCommentCount();
+        
+        // Manual pagination
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), allArticles.size());
+        List<Article> pageContent = allArticles.subList(start, end);
+        
+        return new org.springframework.data.domain.PageImpl<>(
+            pageContent.stream()
+                .map(article -> {
+                    ArticleDto dto = modelMapper.map(article, ArticleDto.class);
+                    // Initialize comments collection and count if needed
+                    if (article.getComments() != null) {
+                        dto.setCommentCount(article.getComments().size());
+                    } else {
+                        dto.setCommentCount(0);
+                    }
+                    return dto;
+                })
+                .collect(Collectors.toList()),
+            pageable,
+            allArticles.size()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -121,7 +143,9 @@ public class ArticleService {
         // Increment view count in a separate transaction
         updateArticleViews(id);
         
-        return modelMapper.map(article, ArticleDto.class);
+        ArticleDto articleDto = modelMapper.map(article, ArticleDto.class);
+        articleDto.setCommentCount(comments.size());
+        return articleDto;
     }
     
     @Transactional
@@ -152,8 +176,25 @@ public class ArticleService {
 
     @Transactional(readOnly = true)
     public Page<ArticleDto> searchArticles(String keyword, Pageable pageable) {
-        return articleRepository.searchArticles(keyword, pageable)
-                .map(article -> modelMapper.map(article, ArticleDto.class));
+        // Get the page of articles with proper sorting
+        Page<Article> articlePage = articleRepository.searchArticles(keyword, pageable);
+        
+        if (articlePage.hasContent()) {
+            // Fetch the same articles with their relationships
+            List<Article> articlesWithRelationships = articleRepository.searchArticlesWithRelationships(keyword);
+            
+            // Create a map for quick lookup
+            Map<Long, Article> articleMap = articlesWithRelationships.stream()
+                    .collect(Collectors.toMap(Article::getId, article -> article));
+            
+            // Map the page content using the fully loaded articles
+            return articlePage.map(article -> {
+                Article fullArticle = articleMap.get(article.getId());
+                return modelMapper.map(fullArticle != null ? fullArticle : article, ArticleDto.class);
+            });
+        }
+        
+        return articlePage.map(article -> modelMapper.map(article, ArticleDto.class));
     }
 
     @Transactional(readOnly = true)
