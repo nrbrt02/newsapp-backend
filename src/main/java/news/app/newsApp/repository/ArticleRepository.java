@@ -105,13 +105,29 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT DISTINCT a FROM Article a WHERE a.author = :author ORDER BY a.views DESC")
     List<Article> findTopArticlesByAuthor(@Param("author") User author);
 
-    @Query("SELECT c.name as category, COUNT(DISTINCT a) as count FROM Article a JOIN a.category c WHERE a.author = :author GROUP BY c.name")
+    @Query("SELECT c.name as category, " +
+           "(SELECT COUNT(DISTINCT a2.id) " +
+           " FROM Article a2 " +
+           " WHERE a2.category = c " +
+           " AND a2.author = :author) as count " +
+           "FROM Category c " +
+           "WHERE EXISTS (SELECT 1 FROM Article a " +
+           "             WHERE a.category = c " +
+           "             AND a.author = :author)")
     Map<String, Long> getCategoryPerformanceByAuthor(@Param("author") User author);
 
-    @Query("SELECT CAST(DATE(a.createdAt) AS string) as date, COUNT(DISTINCT a) as count FROM Article a WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY DATE(a.createdAt)")
+    @Query("SELECT CAST(DATE(a.createdAt) AS string) as date, COUNT(DISTINCT a.id) as count " +
+           "FROM Article a " +
+           "WHERE a.author = :author " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY DATE(a.createdAt)")
     List<Object[]> getArticleCountsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT CAST(DATE(a.createdAt) AS string) as date, COALESCE(SUM(DISTINCT a.views), 0) as views FROM Article a WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY DATE(a.createdAt)")
+    @Query("SELECT CAST(DATE(a.createdAt) AS string) as date, COALESCE(SUM(DISTINCT a.views), 0) as views " +
+           "FROM Article a " +
+           "WHERE a.author = :author " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY DATE(a.createdAt)")
     List<Object[]> getViewCountsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     @Query(value = "SELECT DATE(a.created_at) as date, SUM(a.views) as count " +
@@ -126,8 +142,11 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT DISTINCT a FROM Article a WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate ORDER BY a.views DESC")
     List<Article> getTopArticlesByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT c.name as category, COALESCE(SUM(DISTINCT a.views), 0) as views FROM Article a JOIN a.category c WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY c.name")
-    Map<String, Long> getCategoryViewsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT c.name, COALESCE(SUM(DISTINCT a.views), 0) FROM Article a JOIN a.category c " +
+           "WHERE (:author IS NULL OR a.author = :author) " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY c.name")
+    List<Object[]> getCategoryViewsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     @Query("SELECT c.name, COUNT(DISTINCT a) FROM Article a JOIN a.category c WHERE a.createdAt BETWEEN :startDate AND :endDate GROUP BY c.name")
     List<Object[]> getCategoryViews(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
@@ -135,26 +154,59 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT c.name as category, COUNT(DISTINCT a) as count FROM Article a JOIN a.category c WHERE a.createdAt BETWEEN :startDate AND :endDate GROUP BY c.name ORDER BY count DESC")
     Map<String, Long> getTopCategories(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT c.name as category, COUNT(DISTINCT a) as count FROM Article a JOIN a.category c WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY c.name ORDER BY count DESC")
-    Map<String, Long> getTopCategoriesByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT c.name, COUNT(DISTINCT a.id) " +
+           "FROM Category c " +
+           "JOIN c.articles a " +
+           "WHERE a.author = :author " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY c.name " +
+           "ORDER BY COUNT(DISTINCT a.id) DESC")
+    List<Object[]> getTopCategoriesByAuthor(@Param("author") User author, 
+                                          @Param("startDate") LocalDateTime startDate, 
+                                          @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT a.title as article, COUNT(DISTINCT c) as comments FROM Article a LEFT JOIN a.comments c WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY a.title")
-    Map<String, Long> getEngagementByArticle(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT a.title, " +
+           "(SELECT COUNT(DISTINCT c2.id) " +
+           " FROM Comment c2 " +
+           " WHERE c2.article = a " +
+           " AND c2.createdAt BETWEEN :startDate AND :endDate) " +
+           "FROM Article a " +
+           "WHERE a.author = :author " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "AND EXISTS (SELECT 1 FROM Comment c " +
+           "           WHERE c.article = a " +
+           "           AND c.createdAt BETWEEN :startDate AND :endDate)")
+    List<Object[]> getEngagementByArticle(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT t.name as topic, COUNT(DISTINCT a) as count FROM Article a JOIN a.tags t WHERE a.author = :author AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY t.name ORDER BY count DESC")
-    Map<String, Long> getPopularTopicsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT t.name, COUNT(DISTINCT a) FROM Article a JOIN a.tags t " +
+           "WHERE (:author IS NULL OR a.author = :author) " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY t.name ORDER BY COUNT(DISTINCT a) DESC")
+    List<Object[]> getPopularTopicsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT DATE(a.createdAt), COUNT(DISTINCT a.id) FROM Article a WHERE a.createdAt BETWEEN :startDate AND :endDate GROUP BY DATE(a.createdAt)")
+    @Query("SELECT DATE(a.createdAt), COUNT(DISTINCT a.id) FROM Article a " +
+           "WHERE (:author IS NULL OR a.author = :author) " +
+           "AND a.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY DATE(a.createdAt)")
     List<Object[]> getEngagementPatternsByAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT c.name as category, (COALESCE(SUM(DISTINCT a.views), 0) + COUNT(DISTINCT cm)) as engagement " +
-           "FROM Article a " +
-           "JOIN a.category c " +
-           "LEFT JOIN a.comments cm " +
+    @Query("SELECT c.name, " +
+           "COALESCE(SUM(DISTINCT a.views), 0) + " +
+           "COALESCE(COUNT(DISTINCT cm.id), 0) as engagement " +
+           "FROM Category c " +
+           "JOIN c.articles a " +
+           "LEFT JOIN Comment cm ON cm.article = a " +
            "WHERE a.author = :author " +
            "AND a.createdAt BETWEEN :startDate AND :endDate " +
            "GROUP BY c.name")
-    Map<String, Long> getCategoryEngagementByAuthor(@Param("author") User author, 
-                                                  @Param("startDate") LocalDateTime startDate, 
-                                                  @Param("endDate") LocalDateTime endDate);
+    List<Object[]> getCategoryEngagementByAuthor(@Param("author") User author, 
+                                               @Param("startDate") LocalDateTime startDate, 
+                                               @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT c.name, COUNT(DISTINCT a.id) " +
+           "FROM Category c " +
+           "INNER JOIN c.articles a " +
+           "WHERE a.author = :author " +
+           "GROUP BY c.name")
+    List<Object[]> getCategoryPerformanceByAuthorAsList(@Param("author") User author);
 }

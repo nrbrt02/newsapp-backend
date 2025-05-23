@@ -50,18 +50,35 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     @Query("SELECT COALESCE(SUM(c.likes), 0) FROM Comment c JOIN c.article a WHERE a.author = :author")
     Long sumLikesByArticleAuthor(@Param("author") User author);
 
-    @Query("SELECT DATE(c.createdAt) as date, COUNT(DISTINCT c) as count FROM Comment c JOIN c.article a WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY DATE(c.createdAt)")
-    Map<String, Long> getCommentCountsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT CAST(DATE(c.createdAt) AS string) as date, COUNT(DISTINCT c.id) as count " +
+           "FROM Comment c " +
+           "JOIN c.article a " +
+           "WHERE a.author = :author " +
+           "AND c.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY DATE(c.createdAt)")
+    List<Object[]> getCommentCountsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     @Query("SELECT DATE(c.createdAt) as date, COUNT(DISTINCT c) as count FROM Comment c JOIN c.article a WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY DATE(c.createdAt)")
     Map<String, Long> getDailyCommentsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT cat.name as category, COUNT(DISTINCT c) as count FROM Comment c JOIN c.article a JOIN a.category cat WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY cat.name")
-    Map<String, Long> getCategoryCommentsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT cat.name, COUNT(DISTINCT c) FROM Comment c JOIN c.article a JOIN a.category cat " +
+           "WHERE (:author IS NULL OR a.author = :author) " +
+           "AND c.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY cat.name")
+    List<Object[]> getCategoryCommentsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     @Query("SELECT u.username, COUNT(DISTINCT c) FROM Comment c JOIN c.article a JOIN c.user u WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY u.username")
     List<Object[]> getReaderDemographicsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT a.title, COUNT(DISTINCT c) FROM Comment c JOIN c.article a WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY a.title")
+    @Query("SELECT a.title, " +
+           "(SELECT COUNT(DISTINCT c2.id) " +
+           " FROM Comment c2 " +
+           " WHERE c2.article = a " +
+           " AND c2.createdAt BETWEEN :startDate AND :endDate) as commentCount " +
+           "FROM Article a " +
+           "WHERE a.author = :author " +
+           "AND EXISTS (SELECT 1 FROM Comment c " +
+           "           WHERE c.article = a " +
+           "           AND c.createdAt BETWEEN :startDate AND :endDate)")
     List<Object[]> getReaderFeedbackByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

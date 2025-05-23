@@ -56,10 +56,15 @@ public class WriterStatisticsService {
                 ))
         );
 
-        // Category performance
-        statistics.setCategoryPerformance(
-            articleRepository.getCategoryPerformanceByAuthor(currentUser)
-        );
+        // Category performance - using a different approach
+        Map<String, Long> categoryPerformance = new HashMap<>();
+        List<Object[]> results = articleRepository.getCategoryPerformanceByAuthorAsList(currentUser);
+        for (Object[] result : results) {
+            String categoryName = (String) result[0];
+            Long count = ((Number) result[1]).longValue();
+            categoryPerformance.put(categoryName, count);
+        }
+        statistics.setCategoryPerformance(categoryPerformance);
 
         return statistics;
     }
@@ -94,18 +99,23 @@ public class WriterStatisticsService {
             ));
         performance.put("viewCounts", viewCounts);
 
-        performance.put("commentCounts", commentRepository.getCommentCountsByArticleAuthor(currentUser, startDate, endDate)
-            .entrySet().stream()
+        // Get comment counts
+        List<Object[]> commentCountsList = commentRepository.getCommentCountsByArticleAuthor(currentUser, startDate, endDate);
+        Map<String, Long> commentCounts = commentCountsList.stream()
             .collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> Long.valueOf(e.getValue())
-            )));
-        performance.put("topArticles", articleRepository.getTopArticlesByAuthor(currentUser, startDate, endDate)
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        performance.put("commentCounts", commentCounts);
+
+        // Get top articles
+        Map<String, Long> topArticles = articleRepository.getTopArticlesByAuthor(currentUser, startDate, endDate)
             .stream()
             .collect(Collectors.toMap(
                 Article::getTitle,
                 article -> Long.valueOf(article.getViews())
-            )));
+            ));
+        performance.put("topArticles", topArticles);
 
         return performance;
     }
@@ -124,7 +134,16 @@ public class WriterStatisticsService {
 
         engagement.put("dailyViews", articleRepository.getDailyViewsByAuthor(currentUser, startDate, endDate));
         engagement.put("dailyComments", commentRepository.getDailyCommentsByArticleAuthor(currentUser, startDate, endDate));
-        engagement.put("engagementByArticle", articleRepository.getEngagementByArticle(currentUser, startDate, endDate));
+        
+        // Convert List<Object[]> to Map<String, Long> for engagement by article
+        List<Object[]> engagementList = articleRepository.getEngagementByArticle(currentUser, startDate, endDate);
+        Map<String, Long> engagementByArticle = engagementList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        engagement.put("engagementByArticle", engagementByArticle);
+        
         engagement.put("readerFeedback", commentRepository.getReaderFeedbackByArticleAuthor(currentUser, startDate, endDate));
 
         return engagement;
@@ -142,10 +161,46 @@ public class WriterStatisticsService {
             endDate = LocalDateTime.now();
         }
 
-        performance.put("categoryViews", articleRepository.getCategoryViewsByAuthor(currentUser, startDate, endDate));
-        performance.put("categoryComments", commentRepository.getCategoryCommentsByArticleAuthor(currentUser, startDate, endDate));
-        performance.put("categoryEngagement", articleRepository.getCategoryEngagementByAuthor(currentUser, startDate, endDate));
-        performance.put("topCategories", articleRepository.getTopCategoriesByAuthor(currentUser, startDate, endDate));
+        // Determine if we should use the current user or null (for admin)
+        User author = currentUser.getRole() == User.Role.ADMIN ? null : currentUser;
+
+        // Get category views
+        List<Object[]> viewsList = articleRepository.getCategoryViewsByAuthor(author, startDate, endDate);
+        Map<String, Long> categoryViews = new HashMap<>();
+        for (Object[] row : viewsList) {
+            String categoryName = (String) row[0];
+            Long views = ((Number) row[1]).longValue();
+            categoryViews.put(categoryName, views);
+        }
+        performance.put("categoryViews", categoryViews);
+
+        // Get category comments
+        List<Object[]> commentsList = commentRepository.getCategoryCommentsByArticleAuthor(author, startDate, endDate);
+        Map<String, Long> categoryComments = new HashMap<>();
+        for (Object[] row : commentsList) {
+            String categoryName = (String) row[0];
+            Long comments = ((Number) row[1]).longValue();
+            categoryComments.put(categoryName, comments);
+        }
+        performance.put("categoryComments", categoryComments);
+
+        // Get category engagement
+        List<Object[]> engagementList = articleRepository.getCategoryEngagementByAuthor(currentUser, startDate, endDate);
+        Map<String, Long> categoryEngagement = engagementList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        performance.put("categoryEngagement", categoryEngagement);
+
+        // Get top categories
+        List<Object[]> topCategoriesList = articleRepository.getTopCategoriesByAuthor(currentUser, startDate, endDate);
+        Map<String, Long> topCategories = topCategoriesList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        performance.put("topCategories", topCategories);
 
         return performance;
     }
@@ -171,7 +226,15 @@ public class WriterStatisticsService {
             ));
         insights.put("readerDemographics", readerDemographics);
 
-        insights.put("popularTopics", articleRepository.getPopularTopicsByAuthor(currentUser, startDate, endDate));
+        // Convert List<Object[]> to Map<String, Long> for popular topics
+        User author = currentUser.getRole() == User.Role.ADMIN ? null : currentUser;
+        List<Object[]> topicsList = articleRepository.getPopularTopicsByAuthor(author, startDate, endDate);
+        Map<String, Long> popularTopics = topicsList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        insights.put("popularTopics", popularTopics);
 
         // Convert List<Object[]> to Map<String, Long> for reader feedback
         List<Object[]> feedbackList = commentRepository.getReaderFeedbackByArticleAuthor(currentUser, startDate, endDate);
@@ -183,7 +246,7 @@ public class WriterStatisticsService {
         insights.put("readerFeedback", readerFeedback);
 
         // Convert List<Object[]> to Map<String, Long> for engagement patterns
-        List<Object[]> patternsList = articleRepository.getEngagementPatternsByAuthor(currentUser, startDate, endDate);
+        List<Object[]> patternsList = articleRepository.getEngagementPatternsByAuthor(author, startDate, endDate);
         Map<String, Long> engagementPatterns = patternsList.stream()
             .collect(Collectors.toMap(
                 row -> ((java.sql.Date) row[0]).toString(),
