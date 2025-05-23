@@ -42,11 +42,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT COUNT(DISTINCT u) FROM User u WHERE u.role = 'WRITER' AND u.updatedAt BETWEEN :startDate AND :endDate")
     Long countActiveWriters(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT u.role as role, COUNT(DISTINCT u) as count FROM User u WHERE u.createdAt BETWEEN :startDate AND :endDate GROUP BY u.role")
-    Map<String, Long> countByRoleAndCreatedAtBetweenGroupByRole(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT u.role, COUNT(DISTINCT u) FROM User u WHERE u.createdAt BETWEEN :startDate AND :endDate GROUP BY u.role")
+    List<Object[]> countByRoleAndCreatedAtBetweenGroupByRole(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT DATE(u.updatedAt) as date, COUNT(DISTINCT u) as count FROM User u WHERE u.updatedAt BETWEEN :startDate AND :endDate GROUP BY DATE(u.updatedAt)")
-    Map<String, Long> getUserActivityMetrics(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT DATE(u.updatedAt), COUNT(DISTINCT u) FROM User u WHERE u.updatedAt BETWEEN :startDate AND :endDate GROUP BY DATE(u.updatedAt)")
+    List<Object[]> getUserEngagementMetrics(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
     @Query("SELECT u.username as writer, COUNT(DISTINCT a) as count FROM User u LEFT JOIN u.articles a WHERE u.role = 'WRITER' AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY u.username")
     Map<String, Long> getWriterArticleCounts(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
@@ -59,7 +59,4 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u.username as writer, COUNT(DISTINCT a) as articles FROM User u LEFT JOIN u.articles a WHERE u.role = 'WRITER' AND a.createdAt BETWEEN :startDate AND :endDate GROUP BY u.username ORDER BY articles DESC")
     Map<String, Long> getTopWriters(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
-
-    @Query("SELECT DATE(u.updatedAt) as date, COUNT(DISTINCT u) as count FROM User u WHERE u.updatedAt BETWEEN :startDate AND :endDate GROUP BY DATE(u.updatedAt)")
-    Map<String, Long> getUserEngagementMetrics(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

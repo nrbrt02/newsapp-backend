@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -75,18 +76,24 @@ public class WriterStatisticsService {
             endDate = LocalDateTime.now();
         }
 
-        performance.put("articleCounts", articleRepository.getArticleCountsByAuthor(currentUser, startDate, endDate)
-            .entrySet().stream()
+        // Get article counts by date
+        List<Object[]> articleCountsList = articleRepository.getArticleCountsByAuthor(currentUser, startDate, endDate);
+        Map<String, Long> articleCounts = articleCountsList.stream()
             .collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> Long.valueOf(e.getValue())
-            )));
-        performance.put("viewCounts", articleRepository.getViewCountsByAuthor(currentUser, startDate, endDate)
-            .entrySet().stream()
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        performance.put("articleCounts", articleCounts);
+
+        // Get view counts by date
+        List<Object[]> viewCountsList = articleRepository.getViewCountsByAuthor(currentUser, startDate, endDate);
+        Map<String, Long> viewCounts = viewCountsList.stream()
             .collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> Long.valueOf(e.getValue())
-            )));
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        performance.put("viewCounts", viewCounts);
+
         performance.put("commentCounts", commentRepository.getCommentCountsByArticleAuthor(currentUser, startDate, endDate)
             .entrySet().stream()
             .collect(Collectors.toMap(
@@ -155,10 +162,34 @@ public class WriterStatisticsService {
             endDate = LocalDateTime.now();
         }
 
-        insights.put("readerDemographics", commentRepository.getReaderDemographicsByArticleAuthor(currentUser, startDate, endDate));
+        // Convert List<Object[]> to Map<String, Long> for reader demographics
+        List<Object[]> demographicsList = commentRepository.getReaderDemographicsByArticleAuthor(currentUser, startDate, endDate);
+        Map<String, Long> readerDemographics = demographicsList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        insights.put("readerDemographics", readerDemographics);
+
         insights.put("popularTopics", articleRepository.getPopularTopicsByAuthor(currentUser, startDate, endDate));
-        insights.put("readerFeedback", commentRepository.getReaderFeedbackByArticleAuthor(currentUser, startDate, endDate));
-        insights.put("engagementPatterns", articleRepository.getEngagementPatternsByAuthor(currentUser, startDate, endDate));
+
+        // Convert List<Object[]> to Map<String, Long> for reader feedback
+        List<Object[]> feedbackList = commentRepository.getReaderFeedbackByArticleAuthor(currentUser, startDate, endDate);
+        Map<String, Long> readerFeedback = feedbackList.stream()
+            .collect(Collectors.toMap(
+                row -> (String) row[0],
+                row -> ((Number) row[1]).longValue()
+            ));
+        insights.put("readerFeedback", readerFeedback);
+
+        // Convert List<Object[]> to Map<String, Long> for engagement patterns
+        List<Object[]> patternsList = articleRepository.getEngagementPatternsByAuthor(currentUser, startDate, endDate);
+        Map<String, Long> engagementPatterns = patternsList.stream()
+            .collect(Collectors.toMap(
+                row -> ((java.sql.Date) row[0]).toString(),
+                row -> ((Number) row[1]).longValue()
+            ));
+        insights.put("engagementPatterns", engagementPatterns);
 
         return insights;
     }

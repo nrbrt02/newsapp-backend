@@ -59,9 +59,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     @Query("SELECT cat.name as category, COUNT(DISTINCT c) as count FROM Comment c JOIN c.article a JOIN a.category cat WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY cat.name")
     Map<String, Long> getCategoryCommentsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT u.username as reader, COUNT(DISTINCT c) as comments FROM Comment c JOIN c.article a JOIN c.user u WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY u.username")
-    Map<String, Long> getReaderDemographicsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT u.username, COUNT(DISTINCT c) FROM Comment c JOIN c.article a JOIN c.user u WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY u.username")
+    List<Object[]> getReaderDemographicsByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT a.title as article, COUNT(DISTINCT c) as comments FROM Comment c JOIN c.article a WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY a.title")
-    Map<String, Long> getReaderFeedbackByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    @Query("SELECT a.title, COUNT(DISTINCT c) FROM Comment c JOIN c.article a WHERE a.author = :author AND c.createdAt BETWEEN :startDate AND :endDate GROUP BY a.title")
+    List<Object[]> getReaderFeedbackByArticleAuthor(@Param("author") User author, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

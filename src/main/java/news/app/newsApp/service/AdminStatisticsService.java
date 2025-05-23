@@ -95,12 +95,43 @@ public class AdminStatisticsService {
             endDate = LocalDateTime.now();
         }
 
+        try {
         overview.put("totalArticles", articleRepository.countByCreatedAtBetween(startDate, endDate));
         overview.put("publishedArticles", articleRepository.countByStatusAndCreatedAtBetween(Article.Status.PUBLISHED, startDate, endDate));
         overview.put("totalViews", articleRepository.sumViewsByCreatedAtBetween(startDate, endDate));
         overview.put("totalComments", commentRepository.countByCreatedAtBetween(startDate, endDate));
-        overview.put("articlesByStatus", articleRepository.countByStatusAndCreatedAtBetweenGroupByStatus(startDate, endDate));
-        overview.put("articlesByCategory", articleRepository.countByCategoryAndCreatedAtBetween(startDate, endDate));
+            
+            // Get articles by status and ensure all statuses are represented
+            List<Object[]> statusResults = articleRepository.countByStatusAndCreatedAtBetweenGroupByStatus(startDate, endDate);
+            Map<String, Long> articlesByStatus = new HashMap<>();
+            for (Article.Status status : Article.Status.values()) {
+                articlesByStatus.put(status.name(), 0L);
+            }
+            for (Object[] result : statusResults) {
+                String status = ((Article.Status) result[0]).name();
+                Long count = ((Number) result[1]).longValue();
+                articlesByStatus.put(status, count);
+            }
+            overview.put("articlesByStatus", articlesByStatus);
+            
+            // Get articles by category
+            List<Object[]> categoryResults = articleRepository.countByCategoryAndCreatedAtBetween(startDate, endDate);
+            Map<String, Long> articlesByCategory = new HashMap<>();
+            for (Object[] result : categoryResults) {
+                String category = (String) result[0];
+                Long count = ((Number) result[1]).longValue();
+                articlesByCategory.put(category, count);
+            }
+            overview.put("articlesByCategory", articlesByCategory);
+        } catch (Exception e) {
+            logger.error("Error getting articles overview statistics", e);
+            throw new QueryExecutionException(
+                "Error getting articles overview statistics",
+                "getArticlesOverview",
+                String.format("startDate: %s, endDate: %s", startDate, endDate),
+                e
+            );
+        }
 
         return overview;
     }
@@ -119,8 +150,28 @@ public class AdminStatisticsService {
         overview.put("totalUsers", userRepository.countByCreatedAtBetween(startDate, endDate));
         overview.put("newWriters", userRepository.countByRoleAndCreatedAtBetween(User.Role.WRITER, startDate, endDate));
         overview.put("activeWriters", userRepository.countActiveWriters(startDate, endDate));
-        overview.put("usersByRole", userRepository.countByRoleAndCreatedAtBetweenGroupByRole(startDate, endDate));
-        overview.put("userActivity", userRepository.getUserActivityMetrics(startDate, endDate));
+        
+        // Get users by role and ensure all roles are represented
+        List<Object[]> roleResults = userRepository.countByRoleAndCreatedAtBetweenGroupByRole(startDate, endDate);
+        Map<String, Long> usersByRole = new HashMap<>();
+        for (User.Role role : User.Role.values()) {
+            usersByRole.put(role.name(), 0L);
+        }
+        for (Object[] result : roleResults) {
+            String role = ((User.Role) result[0]).name();
+            Long count = ((Number) result[1]).longValue();
+            usersByRole.put(role, count);
+        }
+        overview.put("usersByRole", usersByRole);
+        
+        // Get user engagement metrics
+        List<Object[]> engagementResults = userRepository.getUserEngagementMetrics(startDate, endDate);
+        Map<String, Long> userEngagement = engagementResults.stream()
+            .collect(Collectors.toMap(
+                row -> row[0].toString(),
+                row -> ((Number) row[1]).longValue()
+            ));
+        overview.put("userActivity", userEngagement);
 
         return overview;
     }
@@ -158,7 +209,12 @@ public class AdminStatisticsService {
             performance.put("totalComments", categoryComments.values().stream().mapToLong(Long::longValue).sum());
 
             logger.debug("Fetching category engagement for period: {} to {}", startDate, endDate);
-            Map<String, Long> categoryEngagement = categoryRepository.getCategoryEngagement(startDate, endDate);
+            List<Object[]> categoryEngagementList = categoryRepository.getCategoryEngagement(startDate, endDate);
+            Map<String, Long> categoryEngagement = categoryEngagementList.stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0],
+                    row -> ((Number) row[1]).longValue()
+                ));
             performance.put("categoryEngagement", categoryEngagement);
             performance.put("totalEngagement", categoryEngagement.values().stream().mapToLong(Long::longValue).sum());
 
@@ -166,7 +222,13 @@ public class AdminStatisticsService {
             performance.put("totalArticles", categoryRepository.getTotalArticles(startDate, endDate));
 
             logger.debug("Fetching top categories for period: {} to {}", startDate, endDate);
-            performance.put("topCategories", categoryRepository.getTopCategories(startDate, endDate));
+            List<Object[]> topCategoriesList = categoryRepository.getTopCategories(startDate, endDate);
+            Map<String, Long> topCategories = topCategoriesList.stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0],
+                    row -> ((Number) row[1]).longValue()
+                ));
+            performance.put("topCategories", topCategories);
 
         } catch (Exception e) {
             String errorMessage = String.format("Error fetching category performance data for period %s to %s", startDate, endDate);
@@ -212,10 +274,43 @@ public class AdminStatisticsService {
             endDate = LocalDateTime.now();
         }
 
-        metrics.put("dailyViews", articleRepository.getDailyViews(startDate, endDate));
+        try {
+            // Get daily views
+            List<Object[]> dailyViewsList = articleRepository.getDailyViews(startDate, endDate);
+            Map<String, Long> dailyViews = dailyViewsList.stream()
+                .collect(Collectors.toMap(
+                    row -> row[0].toString(),
+                    row -> ((Number) row[1]).longValue()
+                ));
+            metrics.put("dailyViews", dailyViews);
+
         metrics.put("dailyComments", commentRepository.getDailyComments(startDate, endDate));
-        metrics.put("engagementByCategory", articleRepository.getCategoryViews(startDate, endDate));
-        metrics.put("userEngagement", userRepository.getUserEngagementMetrics(startDate, endDate));
+            // Get category views
+            List<Object[]> categoryViewsList = articleRepository.getCategoryViews(startDate, endDate);
+            Map<String, Long> categoryViews = categoryViewsList.stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0],
+                    row -> ((Number) row[1]).longValue()
+                ));
+            metrics.put("engagementByCategory", categoryViews);
+            // Get user engagement metrics
+            List<Object[]> userEngagementList = userRepository.getUserEngagementMetrics(startDate, endDate);
+            Map<String, Long> userEngagement = userEngagementList.stream()
+                .collect(Collectors.toMap(
+                    row -> row[0].toString(),
+                    row -> ((Number) row[1]).longValue()
+                ));
+            metrics.put("userEngagement", userEngagement);
+        } catch (Exception e) {
+            String errorMessage = String.format("Error fetching engagement metrics for period %s to %s", startDate, endDate);
+            logger.error(errorMessage, e);
+            throw new QueryExecutionException(
+                errorMessage,
+                "getEngagementMetrics",
+                String.format("startDate: %s, endDate: %s", startDate, endDate),
+                e
+            );
+        }
 
         return metrics;
     }
