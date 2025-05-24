@@ -68,23 +68,24 @@ public class WebSecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.cors(cors -> cors.configurationSource(corsConfigurationSource())) // Enable CORS with the configuration
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> 
                 auth.requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
+                    .requestMatchers("/api/public/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/tags/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/comments/**").permitAll()
-                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                    .requestMatchers("/api/writer/**").hasAnyRole("ADMIN", "WRITER")
+                    .requestMatchers(HttpMethod.GET, "/api/articles/published/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/articles/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/comments/article/**").permitAll()
                     .anyRequest().authenticated()
             );
-
+        
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-
+        
         return http.build();
     }
 }

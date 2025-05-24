@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -14,6 +16,7 @@ import java.util.Map;
 
 @Service
 public class TwoFactorAuthService {
+    private static final Logger logger = LoggerFactory.getLogger(TwoFactorAuthService.class);
 
     @Autowired
     private JavaMailSender mailSender;
@@ -33,6 +36,8 @@ public class TwoFactorAuthService {
         // Store the code and its expiry time
         verificationCodes.put(email, code);
         codeExpiryTimes.put(email, LocalDateTime.now().plusMinutes(CODE_EXPIRY_MINUTES));
+        
+        logger.info("Generated verification code for email: {}, code: {}", email, code);
 
         // Send the code via email
         sendVerificationEmail(email, code);
@@ -42,12 +47,17 @@ public class TwoFactorAuthService {
         String storedCode = verificationCodes.get(email);
         LocalDateTime expiryTime = codeExpiryTimes.get(email);
 
+        logger.info("Verifying code for email: {}, provided code: {}, stored code: {}, expiry time: {}", 
+                   email, code, storedCode, expiryTime);
+
         if (storedCode == null || expiryTime == null) {
+            logger.warn("No stored code found for email: {}", email);
             return false;
         }
 
         // Check if code has expired
         if (LocalDateTime.now().isAfter(expiryTime)) {
+            logger.warn("Code has expired for email: {}", email);
             verificationCodes.remove(email);
             codeExpiryTimes.remove(email);
             return false;
@@ -55,17 +65,19 @@ public class TwoFactorAuthService {
 
         // Verify the code
         boolean isValid = storedCode.equals(code);
+        logger.info("Code verification result for email {}: {}", email, isValid);
         
         // If valid, remove the code
         if (isValid) {
             verificationCodes.remove(email);
             codeExpiryTimes.remove(email);
+            logger.info("Code removed after successful verification for email: {}", email);
         }
 
         return isValid;
     }
 
-    private String generateVerificationCode() {
+    public String generateVerificationCode() {
         SecureRandom random = new SecureRandom();
         StringBuilder code = new StringBuilder();
         
@@ -73,7 +85,9 @@ public class TwoFactorAuthService {
             code.append(random.nextInt(10));
         }
         
-        return code.toString();
+        String generatedCode = code.toString();
+        logger.info("Generated new verification code: {}", generatedCode);
+        return generatedCode;
     }
 
     private void sendVerificationEmail(String email, String code) {
@@ -85,10 +99,31 @@ public class TwoFactorAuthService {
                        "If you didn't request this code, please ignore this email.");
         
         mailSender.send(message);
+        logger.info("Verification email sent to: {}", email);
+    }
+
+    public void sendPasswordResetEmail(String email, String code) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setSubject("Password Reset Request");
+        message.setText("You have requested to reset your password.\n\n" +
+                       "Your verification code is: " + code + "\n\n" +
+                       "This code will expire in " + CODE_EXPIRY_MINUTES + " minutes.\n" +
+                       "If you didn't request this password reset, please ignore this email and ensure your account is secure.");
+        
+        mailSender.send(message);
+        logger.info("Password reset email sent to: {}", email);
+    }
+
+    public void storeVerificationCode(String email, String code) {
+        verificationCodes.put(email, code);
+        codeExpiryTimes.put(email, LocalDateTime.now().plusMinutes(CODE_EXPIRY_MINUTES));
+        logger.info("Stored verification code for email: {}", email);
     }
 
     public void clearVerificationCode(String email) {
         verificationCodes.remove(email);
         codeExpiryTimes.remove(email);
+        logger.info("Verification code cleared for email: {}", email);
     }
 } 

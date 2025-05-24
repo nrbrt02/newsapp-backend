@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.HashMap;
 import java.util.Map;
+import java.time.LocalDateTime;
 
 @Service
 public class UserService {
@@ -216,9 +217,10 @@ public class UserService {
     public ResponseEntity<?> requestPasswordReset(String email) {
         User user = findByEmail(email);
         if (user != null) {
-            // Generate and send 2FA code
-            twoFactorAuthService.generateAndSendVerificationCode(user);
-            return ResponseEntity.ok(new MessageResponse("Verification code has been sent to your email"));
+            String code = twoFactorAuthService.generateVerificationCode();
+            twoFactorAuthService.storeVerificationCode(email, code);
+            twoFactorAuthService.sendPasswordResetEmail(email, code);
+            return ResponseEntity.ok(new MessageResponse("Password reset instructions have been sent to your email"));
         }
         return ResponseEntity.badRequest().body(new MessageResponse("User not found"));
     }

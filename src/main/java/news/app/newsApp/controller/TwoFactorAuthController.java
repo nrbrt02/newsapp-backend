@@ -2,6 +2,7 @@ package news.app.newsApp.controller;
 
 import news.app.newsApp.dto.TwoFactorAuthDto;
 import news.app.newsApp.dto.JwtResponse;
+import news.app.newsApp.dto.MessageResponse;
 import news.app.newsApp.model.User;
 import news.app.newsApp.service.TwoFactorAuthService;
 import news.app.newsApp.service.UserService;
@@ -35,11 +36,19 @@ public class TwoFactorAuthController {
 
     @PostMapping("/verify-reset-password")
     public ResponseEntity<?> verifyResetPasswordCode(@RequestBody TwoFactorAuthDto request) {
-        if (twoFactorAuthService.verifyCode(request.getEmail(), request.getCode())) {
-            userService.resetPassword(request.getEmail(), request.getNewPassword());
-            return ResponseEntity.ok("Password has been reset successfully");
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 6) {
+            return ResponseEntity.badRequest().body(new MessageResponse("New password must be at least 6 characters long"));
         }
-        return ResponseEntity.badRequest().body("Invalid or expired verification code");
+
+        if (twoFactorAuthService.verifyCode(request.getEmail(), request.getCode())) {
+            try {
+                userService.resetPassword(request.getEmail(), request.getNewPassword());
+                return ResponseEntity.ok(new MessageResponse("Password has been reset successfully"));
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(new MessageResponse("Failed to reset password: " + e.getMessage()));
+            }
+        }
+        return ResponseEntity.badRequest().body(new MessageResponse("Invalid or expired verification code"));
     }
 
     @PostMapping("/resend-code")
