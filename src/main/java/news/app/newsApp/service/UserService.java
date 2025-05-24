@@ -1,20 +1,31 @@
 package news.app.newsApp.service;
 
+import news.app.newsApp.dto.AuthRequest;
+import news.app.newsApp.dto.MessageResponse;
 import news.app.newsApp.dto.UserDto;
 import news.app.newsApp.exception.ResourceNotFoundException;
 import news.app.newsApp.model.User;
 import news.app.newsApp.repository.UserRepository;
+import news.app.newsApp.security.JwtTokenProvider;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -27,6 +38,15 @@ public class UserService {
     
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private TwoFactorAuthService twoFactorAuthService;
+
+    @Autowired
+    private JwtTokenProvider jwtUtils;
 
     public List<UserDto> getAllUsers() {
         return userRepository.findAll().stream()
@@ -172,5 +192,66 @@ public class UserService {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
+    }
+
+    public ResponseEntity<?> login(AuthRequest authRequest) {
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
+            );
+
+            User user = userRepository.findByUsername(authRequest.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Generate and send 2FA code
+            twoFactorAuthService.generateAndSendVerificationCode(user);
+
+            return ResponseEntity.ok(new MessageResponse("Verification code has been sent to your email"));
+        } catch (AuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new MessageResponse("Invalid username or password"));
+        }
+    }
+
+    public ResponseEntity<?> requestPasswordReset(String email) {
+        User user = findByEmail(email);
+        if (user != null) {
+            // Generate and send 2FA code
+            twoFactorAuthService.generateAndSendVerificationCode(user);
+            return ResponseEntity.ok(new MessageResponse("Verification code has been sent to your email"));
+        }
+        return ResponseEntity.badRequest().body(new MessageResponse("User not found"));
+    }
+
+    public void resetPassword(String email, String newPassword) {
+        User user = findByEmail(email);
+        if (user != null) {
+            user.setPassword(passwordEncoder.encode(newPassword));
+            userRepository.save(user);
+        } else {
+            throw new RuntimeException("User not found");
+        }
+    }
+
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
+    }
+
+    public Map<String, Object> generateAuthResponse(User user) {
+        // Create Authentication object for JWT
+        org.springframework.security.core.userdetails.UserDetails userDetails =
+            org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
+                .password(user.getPassword())
+                .authorities("ROLE_" + user.getRole().name())
+                .build();
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        String token = jwtUtils.generateToken(authentication);
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("role", user.getRole());
+        return response;
     }
 }

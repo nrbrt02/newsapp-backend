@@ -24,7 +24,7 @@ public class DataInitializer implements CommandLineRunner {
         if (!userRepository.existsByUsername("admin")) {
             User adminUser = new User();
             adminUser.setUsername("admin");
-            adminUser.setEmail("admin@example.com");
+            adminUser.setEmail("nrbrt2002@gmail.com");
             adminUser.setPassword(passwordEncoder.encode("Pa$$w0rd!"));
             adminUser.setFirstName("Admin");
             adminUser.setLastName("User");
